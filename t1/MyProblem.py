@@ -215,6 +215,15 @@ class Ploy:
         """
         return self.getDistance(pointId1, pointId2) != np.inf
 
+    def getAroundConnectedCount(self, pointId) -> int:
+        """
+        获取周边连通点数
+        :param pointId:
+        :return:
+        """
+        # TODO: 有点问题，好像会算错
+        return len(np.where(self.adjacencyMatrix[pointId] != np.inf)[0]) - 1
+
 
 class Config:
     """
@@ -258,7 +267,7 @@ class Config:
     """
     当前求解阵营
     """
-    targetCamp = 'red'
+    targetCamp = 'blue'
 
     """
     当前阵营驻点数量
@@ -280,7 +289,6 @@ class Config:
         }
         return math.floor(max(list(Config.limit[Config.targetCamp].values())) / ratio[Config.targetCamp])
         return math.ceil(np.array(list(Config.limit[Config.targetCamp].values())).sum() / (Config.pointSize))
-
 
     @staticmethod
     def getPointList() -> dict:
@@ -341,7 +349,7 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
             self.pool = ProcessPool(mp.cpu_count())  # 设置池的大小
 
     def evalVars(self, Vars):  # 目标函数，采用多线程加速计算
-        # needTimeStart = time.time()
+        needTimeStart = time.time()
 
         N = Vars.shape[0]
         args = list(zip(Vars, list(range(N))))
@@ -350,9 +358,8 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         CVList = [i[1].tolist() for i in resultList]
         f, CV = [np.array(fList), np.array(CVList)]
 
-        # self.callTimes += 1
-        # print(f'callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
-        # print(CV)
+        Config.callTimes += 1
+        # print(f'callTimes: {Config.callTimes}, needTime: {time.time() - needTimeStart}')
         return f, CV
 
         # 测试某个兵种类型的数量
@@ -384,10 +391,8 @@ def subVars(args):
 
     '''
     max f1 当前方案的威胁系数之和
-    max f2 当前方案的安全系数之和
     '''
     totalDangerScore = 0
-    totalSafeScore = 0
     for iPointId in pointIdList:
         '''
         遍历每个点，计算当前点i的威胁系数
@@ -406,62 +411,25 @@ def subVars(args):
         KDanger = 100
 
         '''
-        遍历每个点，计算当前点安全系数
-        描述：
-            当前点的安全系数是由其他所有点来决定的，和自身无关
+        威胁系数
         '''
-        KSafe = 1
-        # 当前点i的安全系数
-        currentSafeScore = 0
-        for jPointId in pointIdList:
-            if jPointId == iPointId:
-                continue
-            '''
-            威胁系数
-            '''
-            # 遍历其他点，计算i点与j点的连通性
-            # 其他点到当前点是否连通
-            isConnectedParam = ploy.isConnected(iPointId, jPointId)
+        # i点周边点数
+        connectedCountParam = ploy.getAroundConnectedCount(iPointId)
 
-            # j点对i点的威胁系数贡献
-            value = (fireParam * weaponSizeParam * isConnectedParam) / (KDanger * beAttackedDifficultyParam)
+        # j点对i点的威胁系数贡献
+        value = ((fireParam * weaponSizeParam * 0.1) * connectedCountParam * beAttackedDifficultyParam * 10) / KDanger
 
-            currentDangerScore += min(value, 1)
-
-            '''
-            安全系数
-            '''
-            # 其他点火力参数
-            fireParam = ploy.getFireParam(jPointId)
-            # 其他点兵力数量
-            weaponSizeParam = ploy.getWeaponSizeParam(jPointId)
-            # 其他点到当前点的距离
-            distanceSumParam = ploy.getDistance(jPointId, iPointId)
-            # 其他点到当前点是否连通
-            isConnectedParam = ploy.isConnected(jPointId, iPointId)
-
-            # j点对i点的安全系数贡献
-            value = (fireParam * weaponSizeParam * isConnectedParam) / (KSafe * distanceSumParam)
-
-            # 合并贡献
-            currentSafeScore += value
+        currentDangerScore += value
 
         # 计算当前方案的总威胁系数
         totalDangerScore += currentDangerScore
-        # 计算当前方案的总安全系数
-        totalSafeScore += currentSafeScore
     f1.append(totalDangerScore)
-    f2.append(totalSafeScore)
 
-    f1 = np.array(np.matrix(f1).T)
-    f2 = np.array(np.matrix(f2).T)
-    f = f1 + f2 * 0.5
+    f = np.array(np.matrix(f1).T)
 
     # 利用可行性法则处理约束条件
     # 构建违反约束程度矩阵
     """
-    max f1 威胁系数之和
-    max f2 安全系数之和
     s.t.
     兵种数量限制
 
