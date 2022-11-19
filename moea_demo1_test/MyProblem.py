@@ -13,9 +13,10 @@ x1 - 3*x2 <= 2
 x1,x2,x3,x4,x5 ∈ {0,1,2,3,4,5,6,7,8,9,10}
 """
 import enum
+import math
 import pickle
 import time
-
+import numba
 import numpy as np
 from openpyxl import load_workbook
 import geatpy as ea
@@ -54,7 +55,7 @@ class Ploy:
         Arms.lightTank: 1.01,
         Arms.mediumTank: 1.14,
         Arms.heavyTank: 1.92,
-        Arms.selfPropelledGun: 0.047,
+        Arms.selfPropelledGun: 0.047 * 20,
         Arms.UAV: 1.25,
     }
 
@@ -213,35 +214,30 @@ class Ploy:
         return self.getDistance(pointId1, pointId2) != np.inf
 
 
-class MyProblem2(ea.Problem):  # 继承Problem父类
-    """
-    max f1 威胁系数之和
-    max f2 安全系数之和
-    s.t.
-    兵种数量限制
-
-    各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
-    各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,8225}
-    """
-
+class Config:
     """
     兵力限制
     """
     limit = {
         'red': {
-            Arms.infantry: 125,
+            # 单位：2000
+            Arms.infantry: 625,
             Arms.lightTank: 420,
             Arms.mediumTank: 300,
             Arms.heavyTank: 180,
-            Arms.selfPropelledGun: 7000,
+            # 单位：20
+            Arms.selfPropelledGun: 350,
             Arms.UAV: 500,
         },
         'blue': {
-            Arms.infantry: 100,
-            Arms.lightTank: 800,
+            # 单位：2000
+            Arms.infantry: 500,
+            # 单位：2
+            Arms.lightTank: 400,
             Arms.mediumTank: 570,
             Arms.heavyTank: 340,
-            Arms.selfPropelledGun: 14000,
+            # 单位：40
+            Arms.selfPropelledGun: 350,
             Arms.UAV: 300,
         }
     }
@@ -251,17 +247,42 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
     """
     targetCamp = 'blue'
 
+    """
+    当前阵营驻点数量
+    """
+    pointSize = 0
+
+    """
+    兵种类型数量
+    """
+    armTypeSize = 0
+
     callTimes = 0
 
-    def getLimit(self):
-        return np.array(list(self.limit[self.targetCamp].values()), dtype=int).sum()
+    @staticmethod
+    def getLimit() -> int:
+        return math.ceil(np.array(list(Config.limit[Config.targetCamp].values())).mean() / Config.pointSize) * 2
 
-    def getPointList(self) -> dict:
+    @staticmethod
+    def getPointList() -> dict:
         """
         获取己方阵营驻点数量
         :return:
         """
-        return Ploy.getMyPointMap(self.targetCamp)
+        return Ploy.getMyPointMap(Config.targetCamp)
+
+
+class MyProblem2(ea.Problem):  # 继承Problem父类
+    """
+    max f1 威胁系数之和
+    max f2 安全系数之和
+    s.t.
+    兵种数量限制
+
+    各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
+    各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,8225}
+    各方布置10个防空点
+    """
 
     def __init__(self, M=2, PoolType='Thread'):
         """
@@ -269,16 +290,16 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         :param PoolType:
         """
         # 当前阵营驻点数量
-        self.pointSize = len(self.getPointList())
+        Config.pointSize = len(Config.getPointList())
         # 兵种类型数量
-        self.armTypeSize = len(tuple(Arms))
+        Config.armTypeSize = len(tuple(Arms))
 
         name = 'MyProblem2'  # 初始化name（函数名称，可以随意设置）
-        Dim = self.pointSize * 2  # 初始化Dim（决策变量维数）
+        Dim = Config.pointSize * 2  # 初始化Dim（决策变量维数）
         maxormins = [-1] * M  # 初始化maxormins（目标最小最大化标记列表，1：最小化该目标；-1：最大化该目标）
         varTypes = [1] * Dim  # 初始化varTypes（决策变量的类型，0：实数；1：整数）
         lb = [0] * Dim  # 决策变量下界
-        ub = [self.armTypeSize - 1] * self.pointSize + [self.getLimit()] * self.pointSize  # 决策变量上界
+        ub = [Config.armTypeSize - 1] * Config.pointSize + [Config.getLimit()] * Config.pointSize  # 决策变量上界
         lbin = [1] * Dim  # 决策变量下边界（0表示不包含该变量的下边界，1表示包含）
         ubin = [1] * Dim  # 决策变量上边界（0表示不包含该变量的上边界，1表示包含）
         # 调用父类构造方法完成实例化
@@ -296,39 +317,30 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         # 设置用多线程还是多进程
         self.PoolType = PoolType
         if self.PoolType == 'Thread':
-            self.pool = ThreadPool(mp.cpu_count() * 10)  # 设置池的大小
+            self.pool = ThreadPool(mp.cpu_count() * 2)  # 设置池的大小
         elif self.PoolType == 'Process':
             self.pool = ProcessPool(mp.cpu_count())  # 设置池的大小
 
     def evalVars(self, Vars):  # 目标函数，采用多线程加速计算
+        # needTimeStart = time.time()
+
         N = Vars.shape[0]
-        args = list(zip([self for i in range(N)], Vars, list(range(N))))
-        f, CV = [None, None]
-        if self.PoolType == 'Thread':
-            resultList = list(self.pool.map(subVars, args))
-            fList = [i[0].tolist()[0] for i in resultList]
-            CVList = [i[1].tolist() for i in resultList]
-            f, CV = [np.array(fList), np.array(CVList)]
-        elif self.PoolType == 'Process':
-            result = self.pool.map_async(subVars, args)
-            result.wait()
-            f, CV = np.array(result.get())
+        args = list(zip(Vars, list(range(N))))
+        resultList = list(self.pool.map(subVars, args))
+        fList = [i[0].tolist()[0] for i in resultList]
+        CVList = [i[1].tolist() for i in resultList]
+        f, CV = [np.array(fList), np.array(CVList)]
 
+        # self.callTimes += 1
+        # print(f'callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
+        # print(CV)
         return f, CV
-
-    # def evalVars(self, Vars):  # 目标函数
-    #     needTimeStart = time.time()
-    #
-    #     self.callTimes += 1
-    #     print(f'callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
-    #     return f, CV
 
 
 def subVars(args):
-    needTimeStart = time.time()
+    # needTimeStart = time.time()
 
-    problem, Vars, indexN = args
-    self = problem
+    Vars, indexN = args
     f1 = []
     f2 = []
     # 当前预测的策略个数
@@ -340,12 +352,12 @@ def subVars(args):
     '''
 
     # 各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
-    everyPointWeaponRowList = var[:self.pointSize]
+    everyPointWeaponRowList = var[:Config.pointSize]
     # 各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,100}
-    everyPointWeaponSizeRowList = var[self.pointSize:]
+    everyPointWeaponSizeRowList = var[Config.pointSize:]
 
     '''建立当前策略方案模型'''
-    ploy = Ploy(everyPointWeaponRowList, everyPointWeaponSizeRowList, self.targetCamp)
+    ploy = Ploy(everyPointWeaponRowList, everyPointWeaponSizeRowList, Config.targetCamp)
     pointIdList = tuple(range(ploy.adjacencyMatrix.shape[0]))
 
     '''
@@ -427,21 +439,26 @@ def subVars(args):
         totalSafeScore += currentSafeScore
     f2.append(totalSafeScore)
 
+    f1 = np.array(np.matrix(f1).T)
+    f2 = np.array(np.matrix(f2).T)
+    f = np.hstack([f1, f2])
+
     # 利用可行性法则处理约束条件
     # 构建违反约束程度矩阵
-    '''
+    """
+    max f1 威胁系数之和
+    max f2 安全系数之和
     s.t.
     兵种数量限制
 
     各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
     各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,8225}
-
-    小于0的时候符合约束条件
-    '''
+    各方布置10个防空点
+    """
     # 各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
-    everyPointWeaponRowList = Vars[[i for i in range(0, self.pointSize)]]
+    everyPointWeaponRowList = Vars[[i for i in range(0, Config.pointSize)]]
     # 各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,100}
-    everyPointWeaponSizeRowList = Vars[[i for i in range(self.pointSize, self.pointSize * 2)]]
+    everyPointWeaponSizeRowList = Vars[[i for i in range(Config.pointSize, Config.pointSize * 2)]]
     '''
     各个兵种使用数量
     '''
@@ -451,18 +468,22 @@ def subVars(args):
     for weaponType in Arms:
         indexList = np.where(everyPointWeaponRowList == weaponType.value)
         currentWeaponCounter = 0
-        for i in range(indexList[0].shape[0]):
-            yWeaponType = indexList[0][i]
-            currentWeaponCounter += everyPointWeaponSizeRowList[yWeaponType]
+        for i in indexList[0]:
+            currentWeaponCounter += everyPointWeaponSizeRowList[i]
 
         everyWeaponCounter[weaponType.value] = currentWeaponCounter
 
-    CV = np.array(everyWeaponCounter)
+    CV_ = np.array(everyWeaponCounter)
+    """
+    违反约束程度矩阵
+    """
+    CV = []
+    for weaponType in Arms:
+        currentCV = CV_[[weaponType.value]]
+        CV.append(currentCV - Config.limit[Config.targetCamp][weaponType])
 
-    f1 = np.array(np.matrix(f1).T)
-    f2 = np.array(np.matrix(f2).T)
-    f = np.hstack([f1, f2])
+    CV = np.hstack(CV)
 
-    self.callTimes += 1
-    print(f' threadId: {indexN}, callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
+    # self.callTimes += 1
+    # print(f' threadId: {indexN}, callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
     return f, CV
