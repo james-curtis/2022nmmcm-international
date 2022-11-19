@@ -1,6 +1,7 @@
-#%%
+# %%
 # 以及双方的最佳指挥阵地和几个备选阵地
 import numpy as np
+import json
 from openpyxl import load_workbook
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -126,6 +127,18 @@ for rowLine, rowData in enumerate(adjacencyMatrix):
 distanceMatrix, routeMatrix = floyd(adjacencyMatrix)
 
 print()
+
+# %%
+# 写出到文件
+with open(f'./数据处理/{targetCamp}AdjacencyMatrix.json', mode='w+') as f:
+    adjacencyMatrixJson = json.dumps(adjacencyMatrix.tolist())
+    f.write(adjacencyMatrixJson)
+with open(f'./数据处理/{targetCamp}DistanceMatrix.json', mode='w+') as f:
+    distanceMatrixJson = json.dumps(distanceMatrix.tolist())
+    f.write(distanceMatrixJson)
+
+print('运行结束')
+exit(0)
 
 # 在第一列和第一行添加对应的坐标映射
 resultMatrix = np.insert(distanceMatrix, 0, pointFilterList[:, 0], axis=0)
