@@ -37,6 +37,7 @@ class Arms(enum.Enum):
     selfPropelledGun = 4
     # 无人机
     UAV = 5
+    antiaircraft = 6
 
 
 # 策略
@@ -57,6 +58,7 @@ class Ploy:
         Arms.heavyTank: 1.92,
         Arms.selfPropelledGun: 0.047 * 20,
         Arms.UAV: 1.25,
+        Arms.antiaircraft: 0,
     }
 
     # 求解的目标阵营
@@ -220,25 +222,34 @@ class Config:
     """
     limit = {
         'red': {
-            # 单位：2000
-            Arms.infantry: 625,
-            Arms.lightTank: 420,
-            Arms.mediumTank: 300,
-            Arms.heavyTank: 180,
-            # 单位：20
-            Arms.selfPropelledGun: 350,
-            Arms.UAV: 500,
+            # 单位：25000
+            Arms.infantry: 50,
+            # 单位：10
+            Arms.lightTank: 42,
+            # 单位：10
+            Arms.mediumTank: 30,
+            # 单位：10
+            Arms.heavyTank: 18,
+            # 单位：200
+            Arms.selfPropelledGun: 35,
+            # 单位：10
+            Arms.UAV: 50,
+            Arms.antiaircraft: 10,
         },
         'blue': {
-            # 单位：2000
-            Arms.infantry: 500,
-            # 单位：2
-            Arms.lightTank: 400,
-            Arms.mediumTank: 570,
-            Arms.heavyTank: 340,
-            # 单位：40
-            Arms.selfPropelledGun: 350,
-            Arms.UAV: 300,
+            # 单位：20000
+            Arms.infantry: 50,
+            # 单位：20
+            Arms.lightTank: 40,
+            # 单位：10
+            Arms.mediumTank: 57,
+            # 单位：10
+            Arms.heavyTank: 34,
+            # 单位：400
+            Arms.selfPropelledGun: 35,
+            # 单位：10
+            Arms.UAV: 30,
+            Arms.antiaircraft: 10,
         }
     }
 
@@ -362,8 +373,10 @@ def subVars(args):
 
     '''
     max f1 当前方案的威胁系数之和
+    max f2 当前方案的安全系数之和
     '''
     totalDangerScore = 0
+    totalSafeScore = 0
     for iPointId in pointIdList:
         '''
         遍历每个点，计算当前点i的威胁系数
@@ -381,11 +394,21 @@ def subVars(args):
         beAttackedDifficultyParam = ploy.getBeAttackedDifficultyParam(iPointId)
         # 距离平衡系数
         K = 10000
+
+        '''
+        遍历每个点，计算当前点安全系数
+        描述：
+            当前点的安全系数是由其他所有点来决定的，和自身无关
+        '''
+        # 当前点i的安全系数
+        currentSafeScore = 0
         for jPointId in pointIdList:
             if jPointId == iPointId:
                 continue
+            '''
+            威胁系数
+            '''
             # 遍历其他点，计算i点与j点的连通性
-
             # 其他点到当前点是否连通
             isConnectedParam = ploy.isConnected(iPointId, jPointId)
 
@@ -394,32 +417,9 @@ def subVars(args):
 
             currentDangerScore += min(value, 1)
 
-        totalDangerScore += currentDangerScore
-    f1.append(totalDangerScore)
-
-    '''
-    max f2 当前方案的安全系数之和
-    '''
-    # 遍历所有点
-    totalSafeScore = 0
-    for iPointId in pointIdList:
-        '''
-        遍历每个点，计算当前点安全系数
-        描述：
-            当前点的安全系数是由其他所有点来决定的，和自身无关
-        '''
-        # 当前点i的安全系数
-        currentSafeScore = 0
-
-        # 距离平衡系数
-        K = 10000
-
-        # 遍历其他点
-        for jPointId in pointIdList:
-            if jPointId == iPointId:
-                continue
-            # 计算其他点
-
+            '''
+            安全系数
+            '''
             # 其他点火力参数
             fireParam = ploy.getFireParam(jPointId)
             # 其他点兵力数量
@@ -435,8 +435,11 @@ def subVars(args):
             # 合并贡献
             currentSafeScore += value
 
+        # 计算当前方案的总威胁系数
+        totalDangerScore += currentDangerScore
         # 计算当前方案的总安全系数
         totalSafeScore += currentSafeScore
+    f1.append(totalDangerScore)
     f2.append(totalSafeScore)
 
     f1 = np.array(np.matrix(f1).T)
@@ -466,12 +469,8 @@ def subVars(args):
         0 for i in range(len(tuple(Arms)))
     ]
     for weaponType in Arms:
-        indexList = np.where(everyPointWeaponRowList == weaponType.value)
-        currentWeaponCounter = 0
-        for i in indexList[0]:
-            currentWeaponCounter += everyPointWeaponSizeRowList[i]
-
-        everyWeaponCounter[weaponType.value] = currentWeaponCounter
+        currentWeaponSizeList = everyPointWeaponSizeRowList[everyPointWeaponRowList == weaponType.value]
+        everyWeaponCounter[weaponType.value] = np.sum(currentWeaponSizeList)
 
     CV_ = np.array(everyWeaponCounter)
     """
