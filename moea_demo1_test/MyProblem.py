@@ -296,7 +296,7 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         # 设置用多线程还是多进程
         self.PoolType = PoolType
         if self.PoolType == 'Thread':
-            self.pool = ThreadPool(mp.cpu_count())  # 设置池的大小
+            self.pool = ThreadPool(mp.cpu_count() * 10)  # 设置池的大小
         elif self.PoolType == 'Process':
             self.pool = ProcessPool(mp.cpu_count())  # 设置池的大小
 
@@ -305,7 +305,10 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         args = list(zip([self for i in range(N)], Vars, list(range(N))))
         f, CV = [None, None]
         if self.PoolType == 'Thread':
-            f, CV = np.array(list(self.pool.map(subVars, args)))
+            resultList = list(self.pool.map(subVars, args))
+            fList = [i[0].tolist()[0] for i in resultList]
+            CVList = [i[1].tolist() for i in resultList]
+            f, CV = [np.array(fList), np.array(CVList)]
         elif self.PoolType == 'Process':
             result = self.pool.map_async(subVars, args)
             result.wait()
@@ -322,11 +325,14 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
 
 
 def subVars(args):
+    needTimeStart = time.time()
+
     problem, Vars, indexN = args
     self = problem
     f1 = []
     f2 = []
-    polySize = Vars.shape[0]
+    # 当前预测的策略个数
+    polySize = 1
 
     var = Vars
     '''
@@ -433,34 +439,30 @@ def subVars(args):
     小于0的时候符合约束条件
     '''
     # 各点兵种 a0,a1,a2,a3,a4 ∈ {0,1,2,3,4,5}
-    everyPointWeaponRowList = Vars[:, [i for i in range(0, self.pointSize)]]
+    everyPointWeaponRowList = Vars[[i for i in range(0, self.pointSize)]]
     # 各点兵力数量 b0,b1,b2,b3,b4 ∈ {0,1,2,...,100}
-    everyPointWeaponSizeRowList = Vars[:, [i for i in range(self.pointSize, self.pointSize * 2)]]
+    everyPointWeaponSizeRowList = Vars[[i for i in range(self.pointSize, self.pointSize * 2)]]
     '''
     各个兵种使用数量
     '''
     everyWeaponCounter = [
-        [0 for j in range(polySize)] for i in range(len(tuple(Arms)))
+        0 for i in range(len(tuple(Arms)))
     ]
     for weaponType in Arms:
         indexList = np.where(everyPointWeaponRowList == weaponType.value)
-        currentWeaponCounter = everyWeaponCounter[weaponType.value]
+        currentWeaponCounter = 0
         for i in range(indexList[0].shape[0]):
-            xPloyType = indexList[0][i]
-            yWeaponType = indexList[1][i]
-            currentWeaponCounter[xPloyType] += \
-                everyPointWeaponSizeRowList[xPloyType][yWeaponType]
-    CV_ = np.hstack([
-        np.array(np.matrix(i).T) for i in everyWeaponCounter
-    ])
-    CV = []
-    for weaponType in Arms:
-        currentCV = CV_[:, [weaponType.value]]
-        CV.append(currentCV - self.limit[self.targetCamp][weaponType])
+            yWeaponType = indexList[0][i]
+            currentWeaponCounter += everyPointWeaponSizeRowList[yWeaponType]
 
-    CV = np.hstack(CV)
+        everyWeaponCounter[weaponType.value] = currentWeaponCounter
+
+    CV = np.array(everyWeaponCounter)
+
     f1 = np.array(np.matrix(f1).T)
     f2 = np.array(np.matrix(f2).T)
     f = np.hstack([f1, f2])
 
+    self.callTimes += 1
+    print(f' threadId: {indexN}, callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
     return f, CV
