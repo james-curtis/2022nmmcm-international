@@ -274,7 +274,13 @@ class Config:
 
     @staticmethod
     def getLimit() -> int:
-        return math.ceil(np.array(list(Config.limit[Config.targetCamp].values())).mean() / Config.pointSize) * 2
+        ratio = {
+            'blue': 20,
+            'red': 60
+        }
+        return math.floor(max(list(Config.limit[Config.targetCamp].values())) / ratio[Config.targetCamp])
+        return math.ceil(np.array(list(Config.limit[Config.targetCamp].values())).sum() / (Config.pointSize))
+
 
     @staticmethod
     def getPointList() -> dict:
@@ -297,7 +303,7 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
     各方布置10个防空点
     """
 
-    def __init__(self, M=2, PoolType='Thread'):
+    def __init__(self, M=1, PoolType='Thread'):
         """
         :param M: 目标函数个数
         :param PoolType:
@@ -330,7 +336,7 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         # 设置用多线程还是多进程
         self.PoolType = PoolType
         if self.PoolType == 'Thread':
-            self.pool = ThreadPool(mp.cpu_count() * 2)  # 设置池的大小
+            self.pool = ThreadPool(mp.cpu_count() * 10)  # 设置池的大小
         elif self.PoolType == 'Process':
             self.pool = ProcessPool(mp.cpu_count())  # 设置池的大小
 
@@ -348,6 +354,9 @@ class MyProblem2(ea.Problem):  # 继承Problem父类
         # print(f'callTimes: {self.callTimes}, needTime: {time.time() - needTimeStart}')
         # print(CV)
         return f, CV
+
+        # 测试某个兵种类型的数量
+        np.sum(Vars[:, Config.pointSize:][0][Vars[:, :Config.pointSize][0] == 1])
 
 
 def subVars(args):
@@ -394,14 +403,14 @@ def subVars(args):
         weaponSizeParam = ploy.getWeaponSizeParam(iPointId)
         # 当前点被攻击难度
         beAttackedDifficultyParam = ploy.getBeAttackedDifficultyParam(iPointId)
-        # 距离平衡系数
-        K = 10000
+        KDanger = 100
 
         '''
         遍历每个点，计算当前点安全系数
         描述：
             当前点的安全系数是由其他所有点来决定的，和自身无关
         '''
+        KSafe = 1
         # 当前点i的安全系数
         currentSafeScore = 0
         for jPointId in pointIdList:
@@ -415,7 +424,7 @@ def subVars(args):
             isConnectedParam = ploy.isConnected(iPointId, jPointId)
 
             # j点对i点的威胁系数贡献
-            value = (fireParam * weaponSizeParam * isConnectedParam) / (K * beAttackedDifficultyParam)
+            value = (fireParam * weaponSizeParam * isConnectedParam) / (KDanger * beAttackedDifficultyParam)
 
             currentDangerScore += min(value, 1)
 
@@ -432,7 +441,7 @@ def subVars(args):
             isConnectedParam = ploy.isConnected(jPointId, iPointId)
 
             # j点对i点的安全系数贡献
-            value = (fireParam * weaponSizeParam * isConnectedParam) / (K * distanceSumParam)
+            value = (fireParam * weaponSizeParam * isConnectedParam) / (KSafe * distanceSumParam)
 
             # 合并贡献
             currentSafeScore += value
@@ -446,7 +455,7 @@ def subVars(args):
 
     f1 = np.array(np.matrix(f1).T)
     f2 = np.array(np.matrix(f2).T)
-    f = np.hstack([f1, f2])
+    f = f1 + f2 * 0.5
 
     # 利用可行性法则处理约束条件
     # 构建违反约束程度矩阵
