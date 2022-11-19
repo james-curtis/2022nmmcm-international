@@ -37,7 +37,7 @@ class Arms(enum.Enum):
     selfPropelledGun = 4
     # 无人机
     UAV = 5
-    antiaircraft = 6
+    # antiaircraft = 6
 
 
 # 策略
@@ -51,14 +51,14 @@ class Ploy:
     兵种->单位数量武器火力值
     '''
     fireMap = {
-        # 一万步兵
-        Arms.infantry: 4.44,
+        # 一万步兵 / 4
+        Arms.infantry: 4.44 / 4,
         Arms.lightTank: 1.01,
         Arms.mediumTank: 1.14,
         Arms.heavyTank: 1.92,
-        Arms.selfPropelledGun: 0.047 * 20,
+        Arms.selfPropelledGun: 0.047 * 40,
         Arms.UAV: 1.25,
-        Arms.antiaircraft: 0,
+        # Arms.antiaircraft: 0,
     }
 
     # 求解的目标阵营
@@ -222,34 +222,36 @@ class Config:
     """
     limit = {
         'red': {
-            # 单位：25000
-            Arms.infantry: 50,
-            # 单位：10
-            Arms.lightTank: 42,
-            # 单位：10
-            Arms.mediumTank: 30,
-            # 单位：10
-            Arms.heavyTank: 18,
-            # 单位：200
-            Arms.selfPropelledGun: 35,
-            # 单位：10
-            Arms.UAV: 50,
-            Arms.antiaircraft: 10,
+            # 单位：2500
+            Arms.infantry: 500,
+            # 单位：1
+            Arms.lightTank: 420,
+            # 单位：1
+            Arms.mediumTank: 300,
+            # 单位：1
+            Arms.heavyTank: 180,
+            # 单位：40
+            Arms.selfPropelledGun: 175,
+            # 单位：1
+            Arms.UAV: 500,
+            # # 单位：1
+            # Arms.antiaircraft: 10,
         },
         'blue': {
-            # 单位：20000
-            Arms.infantry: 50,
-            # 单位：20
-            Arms.lightTank: 40,
-            # 单位：10
-            Arms.mediumTank: 57,
-            # 单位：10
-            Arms.heavyTank: 34,
-            # 单位：400
-            Arms.selfPropelledGun: 35,
-            # 单位：10
-            Arms.UAV: 30,
-            Arms.antiaircraft: 10,
+            # 单位：2500
+            Arms.infantry: 400,
+            # 单位：1
+            Arms.lightTank: 400,
+            # 单位：1
+            Arms.mediumTank: 570,
+            # 单位：1
+            Arms.heavyTank: 340,
+            # 单位：40
+            Arms.selfPropelledGun: 350,
+            # 单位：1
+            Arms.UAV: 300,
+            # # 单位：1
+            # Arms.antiaircraft: 10,
         }
     }
 
