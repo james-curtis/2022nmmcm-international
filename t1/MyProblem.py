@@ -258,7 +258,7 @@ class Config:
     """
     当前求解阵营
     """
-    targetCamp = 'blue'
+    targetCamp = 'red'
 
     """
     当前阵营驻点数量
@@ -276,7 +276,7 @@ class Config:
     def getLimit() -> int:
         ratio = {
             'blue': 20,
-            'red': 60
+            'red': 50
         }
         return math.floor(max(list(Config.limit[Config.targetCamp].values())) / ratio[Config.targetCamp])
         return math.ceil(np.array(list(Config.limit[Config.targetCamp].values())).sum() / (Config.pointSize))

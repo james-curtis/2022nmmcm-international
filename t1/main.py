@@ -11,8 +11,8 @@ if __name__ == '__main__':
     algorithm = ea.soea_SGA_templet(
         problem,
         ea.Population(Encoding='BG',  # 种群的染色体是'BG'编码
-                      NIND=50),  # 种群数量
-        MAXGEN=200,  # 最大进化代数
+                      NIND=100),  # 种群数量
+        MAXGEN=1000,  # 最大进化代数
         logTras=1)  # 表示每隔多少代记录一次日志信息，0表示不记录。
     # algorithm.mutOper.Pm = 0.2  # 修改变异算子的变异概率
     # algorithm.recOper.XOVR = 0.7  # 修改交叉算子的交叉概率
