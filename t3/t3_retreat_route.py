@@ -7,16 +7,16 @@ import data.t1_1_data as data
 from util import Floyd
 
 if __name__ == '__main__':
-    globalAdjacencyMatrix = data.globalAdjacencyMatrix
+    globalAdjacencyMatrixButBroken = data.globalAdjacencyMatrixButBroken
 
     floyd = Floyd.Floyd()
-    floyd.run(globalAdjacencyMatrix)
+    distanceMatrix, routeMatrix = floyd.run(globalAdjacencyMatrixButBroken)
 
     exitPointIndex = [140, 37, 378]
     routeList = []
 
     for exitPoint in exitPointIndex:
-        for currentPoint in range(1, len(globalAdjacencyMatrix) + 1):
+        for currentPoint in range(1, len(globalAdjacencyMatrixButBroken) + 1):
             result = floyd.getPath(currentPoint - 1, exitPoint - 1)
             routeList.append((np.array(result) + 1).tolist())
 
