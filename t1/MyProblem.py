@@ -28,12 +28,10 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 @enum.unique
 class Arms(enum.Enum):
-    # 一万步兵
     infantry = 0
     lightTank = 1
     mediumTank = 2
     heavyTank = 3
-    # 自行火炮
     selfPropelledGun = 4
     # 无人机
     UAV = 5
