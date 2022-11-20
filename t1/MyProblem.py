@@ -265,7 +265,7 @@ class Config:
     """
     当前求解阵营
     """
-    targetCamp = 'blue'
+    targetCamp = 'red'
 
     """
     当前阵营驻点数量
