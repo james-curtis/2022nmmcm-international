@@ -3,6 +3,7 @@ import numpy as np
 from openpyxl import load_workbook
 import data.t1_1_data as data
 from util import Floyd
+import pandas as pd
 
 wb = load_workbook('./supplyAllocation.xlsx')
 supplyAllocationSheet = wb.worksheets[0]
@@ -69,4 +70,11 @@ if __name__ == '__main__':
 
     for breakPoint in breakthrougIndexhList:
         result = floyd.getPath(breakPoint - 1, blueBasePointIndex - 1)
-        routeList.append(np.array(result) + 1)
+        routeList.append((np.array(result) + 1).tolist())
+
+    '''
+    导出Excel
+    '''
+    with open('Red Team Attack Plan.csv', 'w+') as f:
+        for idx, row in enumerate(routeList):
+            f.write(','.join(map(str, [breakthrougIndexhList[idx], '', *row])) + '\n')
