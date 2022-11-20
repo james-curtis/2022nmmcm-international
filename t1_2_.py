@@ -1,4 +1,7 @@
-#%%
+# %%
+"""
+这个文件是算整个图的邻接矩阵
+"""
 # 以及双方的最佳指挥阵地和几个备选阵地
 import numpy as np
 import json
@@ -18,6 +21,7 @@ def floyd(adjacent_matrix):
                     distance[i][j] = distance[i][k] + distance[k][j]  # 找到经过k点时路径更短，接受这个更短的路径长度
                     route[i][j] = k  # 路由矩阵记录路径
     return distance, route
+
 
 # %%
 # Annex1：node＆link.xlsx
@@ -52,6 +56,9 @@ for rowLine, rowData in enumerate(adjacencyMatrix):
             rowData[colLine] = 0
 
 adjacencyMatrixJson = json.dumps(adjacencyMatrix.tolist())
+# with open('./data/globalAdjacencyMatrix.json', 'w+') as f:
+#     f.write(adjacencyMatrixJson)
+
 # %%
 # Floyd算法计算
 
@@ -59,4 +66,4 @@ adjacencyMatrixJson = json.dumps(adjacencyMatrix.tolist())
 distanceMatrix, routeMatrix = floyd(adjacencyMatrix)
 distanceMatrixJson = json.dumps(distanceMatrix.tolist())
 
-print()
+print('计算完成')
